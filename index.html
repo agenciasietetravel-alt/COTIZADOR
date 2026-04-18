@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cotizador de Vuelos</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #f5f5f0;
+  color: #1a1a1a;
+  min-height: 100vh;
+  padding: 2rem 1rem;
+}
+.container { max-width: 560px; margin: 0 auto; }
+.header { text-align: center; margin-bottom: 2rem; }
+.header h1 { font-size: 26px; font-weight: 600; color: #1a1a1a; margin-bottom: 6px; }
+.header p { font-size: 14px; color: #666; }
+.card {
+  background: #fff;
+  border-radius: 16px;
+  border: 0.5px solid #e0e0d8;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+}
+.field { margin-bottom: 1rem; }
+.field label { display: block; font-size: 13px; font-weight: 500; color: #555; margin-bottom: 6px; }
+.field input, .field select {
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border: 0.5px solid #d0d0c8;
+  border-radius: 10px;
+  font-size: 15px;
+  color: #1a1a1a;
+  background: #fafaf8;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.field input:focus, .field select:focus { border-color: #534AB7; background: #fff; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.btn {
+  width: 100%;
+  height: 48px;
+  background: #534AB7;
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  margin-top: 0.5rem;
+}
+.btn:hover { background: #3C3489; }
+.btn:active { transform: scale(0.98); }
+.btn:disabled { background: #aaa; cursor: not-allowed; transform: none; }
+.loading { display: none; text-align: center; padding: 2rem; }
+.spinner {
+  width: 36px; height: 36px;
+  border: 3px solid #e0e0d8;
+  border-top-color: #534AB7;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto 12px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading p { font-size: 14px; color: #666; }
+.resultado { display: none; }
+.result-card { background: #fff; border-radius: 16px; border: 0.5px solid #e0e0d8; overflow: hidden; }
+.result-header { background: #534AB7; padding: 1.25rem 1.5rem; color: #fff; }
+.result-header .ruta { font-size: 22px; font-weight: 600; letter-spacing: 0.5px; }
+.result-header .sub { font-size: 13px; opacity: 0.85; margin-top: 4px; }
+.result-body { padding: 1.25rem 1.5rem; }
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 0.5px solid #f0f0e8;
+  font-size: 14px;
+}
+.info-row:last-child { border-bottom: none; }
+.info-row .label { color: #888; font-size: 13px; }
+.info-row .value { font-weight: 500; color: #1a1a1a; text-align: right; }
+.precio-section {
+  margin-top: 1rem;
+  padding: 1rem 1.25rem;
+  background: #f8f8f4;
+  border-radius: 12px;
+}
+.precio-titulo { font-size: 12px; font-weight: 500; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+.precio-fila { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; }
+.precio-fila + .precio-fila { border-top: 0.5px solid #e8e8e0; }
+.precio-fila .tipo { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #333; flex-wrap: wrap; }
+.badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-weight: 500;
+}
+.badge-verde  { background: #EAF3DE; color: #3B6D11; }
+.badge-azul   { background: #E6F1FB; color: #185FA5; }
+.badge-amber  { background: #FAEEDA; color: #854F0B; }
+.precio-monto { font-size: 18px; font-weight: 600; color: #1a1a1a; text-align: right; }
+.precio-monto small { font-size: 12px; font-weight: 400; color: #888; display: block; }
+.nota { font-size: 12px; color: #aaa; margin-top: 8px; }
+.stop-card {
+  background: #fff;
+  border-radius: 16px;
+  border: 0.5px solid #F09595;
+  padding: 2rem 1.5rem;
+  text-align: center;
+}
+.stop-icon { font-size: 40px; margin-bottom: 12px; }
+.stop-card h3 { font-size: 16px; font-weight: 600; color: #A32D2D; margin-bottom: 8px; }
+.stop-card p { font-size: 14px; color: #666; line-height: 1.6; }
+.btn-secundario {
+  width: 100%;
+  height: 44px;
+  background: transparent;
+  color: #534AB7;
+  border: 0.5px solid #534AB7;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 1rem;
+  transition: background 0.15s;
+}
+.btn-secundario:hover { background: #EEEDFE; }
+.error-msg {
+  display: none;
+  background: #FCEBEB;
+  border: 0.5px solid #F09595;
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 14px;
+  color: #A32D2D;
+  margin-top: 1rem;
+}
+.escalas-badge {
+  font-size: 12px;
+  background: #F1EFE8;
+  color: #5F5E5A;
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+@media (max-width: 400px) { .row { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <h1>✈ Cotizador de vuelos</h1>
+    <p>Solo ida · Precios en pesos colombianos</p>
+  </div>
+
+  <div id="formulario">
+    <div class="card">
+      <div class="row">
+        <div class="field">
+          <label>Desde</label>
+          <select id="origen">
+            <option value="">Ciudad de origen</option>
+            <optgroup label="── Colombia ──">
+              <option value="BOG">Bogotá (BOG)</option>
+              <option value="MED">Medellín (MED)</option>
+              <option value="CLO">Cali (CLO)</option>
+              <option value="BAQ">Barranquilla (BAQ)</option>
+              <option value="CTG">Cartagena (CTG)</option>
+              <option value="BGA">Bucaramanga (BGA)</option>
+              <option value="PEI">Pereira (PEI)</option>
+              <option value="CUC">Cúcuta (CUC)</option>
+              <option value="SMR">Santa Marta (SMR)</option>
+              <option value="MZL">Manizales (MZL)</option>
+              <option value="AXM">Armenia (AXM)</option>
+              <option value="IBE">Ibagué (IBE)</option>
+              <option value="NVA">Neiva (NVA)</option>
+            </optgroup>
+            <optgroup label="── España ──">
+              <option value="MAD">Madrid (MAD)</option>
+              <option value="BCN">Barcelona (BCN)</option>
+              <option value="AGP">Málaga (AGP)</option>
+              <option value="VLC">Valencia (VLC)</option>
+              <option value="SVQ">Sevilla (SVQ)</option>
+              <option value="BIO">Bilbao (BIO)</option>
+              <option value="LPA">Gran Canaria (LPA)</option>
+              <option value="TFS">Tenerife (TFS)</option>
+            </optgroup>
+            <optgroup label="── Italia ──">
+              <option value="FCO">Roma (FCO)</option>
+              <option value="MXP">Milán (MXP)</option>
+              <option value="VCE">Venecia (VCE)</option>
+              <option value="NAP">Nápoles (NAP)</option>
+              <option value="FLR">Florencia (FLR)</option>
+              <option value="BLQ">Bolonia (BLQ)</option>
+              <option value="TRN">Turín (TRN)</option>
+            </optgroup>
+            <optgroup label="── Europa ──">
+              <option value="CDG">París (CDG)</option>
+              <option value="LHR">Londres (LHR)</option>
+              <option value="AMS">Ámsterdam (AMS)</option>
+              <option value="FRA">Frankfurt (FRA)</option>
+              <option value="LIS">Lisboa (LIS)</option>
+            </optgroup>
+            <optgroup label="── Américas ──">
+              <option value="MIA">Miami (MIA)</option>
+              <option value="JFK">Nueva York (JFK)</option>
+              <option value="MEX">Ciudad de México (MEX)</option>
+              <option value="PTY">Panamá (PTY)</option>
+              <option value="LIM">Lima (LIM)</option>
+              <option value="EZE">Buenos Aires (EZE)</option>
+              <option value="SCL">Santiago (SCL)</option>
+              <option value="GRU">São Paulo (GRU)</option>
+              <option value="CUN">Cancún (CUN)</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="field">
+          <label>Hasta</label>
+          <select id="destino">
+            <option value="">Ciudad de destino</option>
+            <optgroup label="── Colombia ──">
+              <option value="BOG">Bogotá (BOG)</option>
+              <option value="MED">Medellín (MED)</option>
+              <option value="CLO">Cali (CLO)</option>
+              <option value="BAQ">Barranquilla (BAQ)</option>
+              <option value="CTG">Cartagena (CTG)</option>
+              <option value="BGA">Bucaramanga (BGA)</option>
+              <option value="PEI">Pereira (PEI)</option>
+              <option value="CUC">Cúcuta (CUC)</option>
+              <option value="SMR">Santa Marta (SMR)</option>
+              <option value="MZL">Manizales (MZL)</option>
+              <option value="AXM">Armenia (AXM)</option>
+              <option value="IBE">Ibagué (IBE)</option>
+              <option value="NVA">Neiva (NVA)</option>
+            </optgroup>
+            <optgroup label="── España ──">
+              <option value="MAD">Madrid (MAD)</option>
+              <option value="BCN">Barcelona (BCN)</option>
+              <option value="AGP">Málaga (AGP)</option>
+              <option value="VLC">Valencia (VLC)</option>
+              <option value="SVQ">Sevilla (SVQ)</option>
+              <option value="BIO">Bilbao (BIO)</option>
+              <option value="LPA">Gran Canaria (LPA)</option>
+              <option value="TFS">Tenerife (TFS)</option>
+            </optgroup>
+            <optgroup label="── Italia ──">
+              <option value="FCO">Roma (FCO)</option>
+              <option value="MXP">Milán (MXP)</option>
+              <option value="VCE">Venecia (VCE)</option>
+              <option value="NAP">Nápoles (NAP)</option>
+              <option value="FLR">Florencia (FLR)</option>
+              <option value="BLQ">Bolonia (BLQ)</option>
+              <option value="TRN">Turín (TRN)</option>
+            </optgroup>
+            <optgroup label="── Europa ──">
+              <option value="CDG">París (CDG)</option>
+              <option value="LHR">Londres (LHR)</option>
+              <option value="AMS">Ámsterdam (AMS)</option>
+              <option value="FRA">Frankfurt (FRA)</option>
+              <option value="LIS">Lisboa (LIS)</option>
+            </optgroup>
+            <optgroup label="── Américas ──">
+              <option value="MIA">Miami (MIA)</option>
+              <option value="JFK">Nueva York (JFK)</option>
+              <option value="MEX">Ciudad de México (MEX)</option>
+              <option value="PTY">Panamá (PTY)</option>
+              <option value="LIM">Lima (LIM)</option>
+              <option value="EZE">Buenos Aires (EZE)</option>
+              <option value="SCL">Santiago (SCL)</option>
+              <option value="GRU">São Paulo (GRU)</option>
+              <option value="CUN">Cancún (CUN)</option>
+            </optgroup>
+          </select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label>Fecha de salida</label>
+          <input type="date" id="fecha" />
+        </div>
+        <div class="field">
+          <label>Pasajeros</label>
+          <select id="pasajeros">
+            <option value="1">1 pasajero</option>
+            <option value="2">2 pasajeros</option>
+            <option value="3">3 pasajeros</option>
+            <option value="4">4 pasajeros</option>
+            <option value="5">5 pasajeros</option>
+            <option value="6">6 pasajeros</option>
+          </select>
+        </div>
+      </div>
+
+      <button class="btn" id="btnBuscar" onclick="buscarVuelo()">Buscar cotización</button>
+      <div class="error-msg" id="errorMsg"></div>
+    </div>
+  </div>
+
+  <div class="loading" id="loading">
+    <div class="card">
+      <div class="spinner"></div>
+      <p>Consultando disponibilidad...</p>
+      <p style="font-size:12px;color:#aaa;margin-top:6px;">Buscando en 5 fechas en tiempo real</p>
+    </div>
+  </div>
+
+  <div class="resultado" id="resultado"></div>
+
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────
+//  ÚNICA LÍNEA QUE DEBES CAMBIAR:
+//  Pega aquí la URL de tu webhook de n8n cuando lo actives
+// ─────────────────────────────────────────────────────────
+const WEBHOOK_URL = 'https://n8n.srv802992.hstgr.cloud/webhook/bcc63292-a394-4e46-b87f-cb93730816b1';
+
+function fmt(n) {
+  return '$' + Math.round(n).toLocaleString('es-CO') + ' COP';
+}
+
+function mostrarError(msg) {
+  const el = document.getElementById('errorMsg');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function nuevaBusqueda() {
+  document.getElementById('formulario').style.display = 'block';
+  document.getElementById('resultado').style.display  = 'none';
+  document.getElementById('loading').style.display    = 'none';
+  document.getElementById('btnBuscar').disabled       = false;
+  document.getElementById('errorMsg').style.display   = 'none';
+}
+
+async function buscarVuelo() {
+  const origen    = document.getElementById('origen').value;
+  const destino   = document.getElementById('destino').value;
+  const fecha     = document.getElementById('fecha').value;
+  const pasajeros = parseInt(document.getElementById('pasajeros').value);
+
+  document.getElementById('errorMsg').style.display = 'none';
+
+  if (!origen)               { mostrarError('Selecciona la ciudad de origen'); return; }
+  if (!destino)              { mostrarError('Selecciona la ciudad de destino'); return; }
+  if (origen === destino)    { mostrarError('El origen y destino no pueden ser iguales'); return; }
+  if (!fecha)                { mostrarError('Selecciona una fecha de viaje'); return; }
+
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  if (new Date(fecha + 'T12:00:00') < hoy) { mostrarError('La fecha debe ser futura'); return; }
+
+  document.getElementById('formulario').style.display = 'none';
+  document.getElementById('loading').style.display    = 'block';
+  document.getElementById('resultado').style.display  = 'none';
+  document.getElementById('btnBuscar').disabled       = true;
+
+  try {
+    // Construimos el mensaje de conversación que el webhook de n8n espera
+    // El nodo AI extrae origen, destino, fecha y pasajeros de este texto
+    const textoConversacion =
+      `Agente: Hola, ¿en qué te puedo ayudar?\n` +
+      `Cliente: Quiero cotizar un vuelo de ${origen} a ${destino} ` +
+      `para el ${fecha}, somos ${pasajeros} ${pasajeros === 1 ? 'persona' : 'personas'}.`;
+
+    const respuesta = await fetch(WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: { text: textoConversacion },
+        contactId:  'web-cotizador',
+        telefono:   '',
+        locationId: 'web'
+      })
+    });
+
+    if (!respuesta.ok) {
+      throw new Error('Error HTTP ' + respuesta.status);
+    }
+
+    const data = await respuesta.json();
+
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('resultado').style.display = 'block';
+
+    if (data.resultado === 'OK') {
+      mostrarResultado(data.cotizacion, pasajeros);
+    } else {
+      mostrarSTOP(data.motivo, data.respuesta);
+    }
+
+  } catch(e) {
+    document.getElementById('loading').style.display    = 'none';
+    document.getElementById('formulario').style.display = 'block';
+    document.getElementById('btnBuscar').disabled       = false;
+    mostrarError('Error de conexión con el servidor. Verifica que n8n esté activo.');
+  }
+}
+
+function mostrarResultado(c, pasajeros) {
+  const esSoloCarryon = c.tarifaCarryon;
+  const MALETA_EST    = 200000;
+
+  const precioConMaletaPax   = c.precioPorPax + MALETA_EST;
+  const precioConMaletaTotal = c.precioTotal  + (MALETA_EST * pasajeros);
+
+  let htmlPrecios = '';
+
+  if (esSoloCarryon) {
+    htmlPrecios = `
+      <div class="precio-fila">
+        <div class="tipo">
+          Solo carry-on
+          <span class="badge badge-verde">Recomendado</span>
+        </div>
+        <div class="precio-monto">
+          ${fmt(c.precioPorPax)}
+          ${pasajeros > 1 ? `<small>Total ${pasajeros} pax: ${fmt(c.precioTotal)}</small>` : ''}
+        </div>
+      </div>
+      <div class="precio-fila">
+        <div class="tipo">
+          Con maleta 23kg
+          <span class="badge badge-azul">+ equipaje</span>
+        </div>
+        <div class="precio-monto">
+          ${fmt(precioConMaletaPax)}
+          ${pasajeros > 1 ? `<small>Total ${pasajeros} pax: ${fmt(precioConMaletaTotal)}</small>` : ''}
+        </div>
+      </div>
+      <p class="nota">* precio con maleta es estimado</p>`;
+  } else {
+    htmlPrecios = `
+      <div class="precio-fila">
+        <div class="tipo">
+          Incluye maleta en bodega
+          <span class="badge badge-amber">Solo esta tarifa</span>
+        </div>
+        <div class="precio-monto">
+          ${fmt(c.precioPorPax)}
+          ${pasajeros > 1 ? `<small>Total ${pasajeros} pax: ${fmt(c.precioTotal)}</small>` : ''}
+        </div>
+      </div>
+      <p class="nota">No encontramos tarifa solo carry-on para estas fechas</p>`;
+  }
+
+  document.getElementById('resultado').innerHTML = `
+    <div class="result-card">
+      <div class="result-header">
+        <div class="ruta">${c.origenCod} → ${c.destinoCod}</div>
+        <div class="sub">${c.aerolinea} · Solo ida</div>
+      </div>
+      <div class="result-body">
+        <div class="info-row">
+          <span class="label">Fecha</span>
+          <span class="value" style="text-transform:capitalize">${c.fecha}</span>
+        </div>
+        <div class="info-row">
+          <span class="label">Horario</span>
+          <span class="value">${c.horaSalida} → ${c.horaLlegada}</span>
+        </div>
+        <div class="info-row">
+          <span class="label">Escalas</span>
+          <span class="value"><span class="escalas-badge">${c.detalleEscalas}</span></span>
+        </div>
+        ${pasajeros > 1 ? `
+        <div class="info-row">
+          <span class="label">Pasajeros</span>
+          <span class="value">${pasajeros} personas</span>
+        </div>` : ''}
+        <div class="precio-section">
+          <div class="precio-titulo">Precio por persona</div>
+          ${htmlPrecios}
+        </div>
+      </div>
+    </div>
+    <button class="btn-secundario" onclick="nuevaBusqueda()">← Nueva búsqueda</button>
+  `;
+}
+
+function mostrarSTOP(motivo, respuesta) {
+  let titulo, mensaje;
+  if (motivo === 'sin_resultados') {
+    titulo  = 'No encontramos vuelos disponibles';
+    mensaje = 'No hay opciones para esas fechas con los filtros actuales. Prueba otras fechas o destinos.';
+  } else if (motivo === 'precio_excedido') {
+    titulo  = 'Precio fuera de rango';
+    mensaje = respuesta || 'El precio más bajo supera el presupuesto máximo disponible. Prueba otras fechas.';
+  } else {
+    titulo  = 'Información incompleta';
+    mensaje = respuesta || 'Verifica los datos e intenta de nuevo.';
+  }
+
+  document.getElementById('resultado').innerHTML = `
+    <div class="stop-card">
+      <div class="stop-icon">✈</div>
+      <h3>${titulo}</h3>
+      <p>${mensaje}</p>
+    </div>
+    <button class="btn-secundario" onclick="nuevaBusqueda()">← Nueva búsqueda</button>
+  `;
+}
+
+// Fecha mínima = mañana
+const manana = new Date();
+manana.setDate(manana.getDate() + 1);
+document.getElementById('fecha').min = manana.toISOString().split('T')[0];
+</script>
+</body>
+</html>
