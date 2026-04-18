@@ -1,0 +1,401 @@
+{
+  "name": "Escenario 2 - COTIZADOR Solo Ida Duffel v4",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cotizar-vuelo",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "node-0001",
+      "name": "Webhook desde Escenario 1",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "cotizar-vuelo"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json;\n\n// La conversación llega en message.text\nconst conversacion = body.message?.text || '';\n\n// Datos del contacto — ajusta los campos según tu payload de GHL\nconst contactId  = body.contactId  || body.contact_id  || '';\nconst telefono   = body.phone      || body.fromNumber  || '';\nconst locationId = body.locationId || body.location_id || '';\n\nif (!conversacion) {\n  throw new Error('No se recibió conversación en body.message.text');\n}\n\nreturn [{ json: { conversacion, contactId, telefono, locationId } }];"
+      },
+      "id": "node-0002",
+      "name": "Extraer conversación",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Eres un extractor de datos de viaje. Lee TODA la conversación y extrae los parámetros del vuelo que el cliente quiere.\n\nRetorna SOLO un JSON válido, sin texto adicional, sin markdown, sin explicaciones.\n\nEstructura exacta a retornar:\n{\n  \"origen\": \"CODIGO_IATA\",\n  \"destino\": \"CODIGO_IATA\",\n  \"fechas\": [\"YYYY-MM-DD\",\"YYYY-MM-DD\",\"YYYY-MM-DD\",\"YYYY-MM-DD\",\"YYYY-MM-DD\"],\n  \"pasajeros\": 1,\n  \"consulta_valida\": true,\n  \"razon_invalida\": \"\"\n}\n\nREGLAS FECHAS (genera SIEMPRE exactamente 5 fechas):\n- 'finales de agosto' → 2026-08-27, 28, 29, 30, 31\n- 'principios de septiembre' → 2026-09-01, 02, 03, 04, 05\n- 'mediados de octubre' → 2026-10-13, 14, 15, 16, 17\n- 'primera semana de julio' → 2026-07-01, 02, 03, 04, 05\n- 'última semana de marzo' → 2026-03-25, 26, 27, 28, 29\n- fecha exacta (ej: '15 de junio') → desde esa fecha + 4 días siguientes: 2026-06-15, 16, 17, 18, 19\n- Sin fecha clara → consulta_valida: false, razon_invalida debe mencionar 'fecha'\n- Año por defecto: 2026\n- Si el cliente menciona año explícito, usarlo\n\nPASAJEROS: si no se menciona usar 1. Usar siempre el último número mencionado.\nVALIDACIÓN: consulta_valida: true SOLO si tienes origen + destino + fecha claros.\nSi el cliente cambió algún dato en la conversación, usar SIEMPRE el más reciente.\n\nCÓDIGOS IATA — COLOMBIA:\nBogotá=BOG, Medellín=MED, Cali=CLO, Barranquilla=BAQ, Cartagena=CTG\nBucaramanga=BGA, Pereira=PEI, Cúcuta=CUC, Santa Marta=SMR, Manizales=MZL\nArmenia=AXM, Ibagué=IBE, Neiva=NVA, Villavicencio=VVC, Montería=MTR\nValledupar=VUP, Riohacha=RCH, San Andrés=ADZ, Leticia=LET, Pasto=PSO\nPopayán=PPN, Quibdó=UIB, Arauca=AUC, Yopal=EYP, Florencia=FLA\nTumaco=TCO, Puerto Asís=PUU, Barrancabermeja=EJA\n\nCÓDIGOS IATA — ESPAÑA:\nMadrid=MAD, Barcelona=BCN, Málaga=AGP, Palma de Mallorca=PMI\nAlicante=ALC, Valencia=VLC, Sevilla=SVQ, Bilbao=BIO, Ibiza=IBZ\nGran Canaria=LPA, Tenerife Sur=TFS, Tenerife Norte=TFN\nLanzarote=ACE, Fuerteventura=FUE, Santiago de Compostela=SCQ\nMenorca=MAH, Zaragoza=ZAZ, Valladolid=VLL, Murcia=RMU\nSan Sebastián=EAS, Santander=SDR, Asturias=OVD, Almería=LEI\nJerez de la Frontera=XRY, Vigo=VGO, A Coruña=LCG, Granada=GRX\n\nCÓDIGOS IATA — ITALIA:\nRoma=FCO, Roma Ciampino=CIA, Milán Malpensa=MXP\nMilán Linate=LIN, Bergamo=BGY, Venecia=VCE, Nápoles=NAP\nCatania=CTA, Palermo=PMO, Bolonia=BLQ, Turín=TRN, Florencia=FLR\nBari=BRI, Brindisi=BDS, Cagliari=CAG, Génova=GOA, Trieste=TRS\nVerona=VRN, Pisa=PSA, Lamezia Terme=SUF, Reggio Calabria=REG\nAlghero=AHO, Olbia=OLB, Pescara=PSR, Ancona=AOI, Treviso=TSF\n\nOTROS CÓDIGOS IATA FRECUENTES:\nParís=CDG, Londres=LHR, Londres Gatwick=LGW, Ámsterdam=AMS\nFrankfurt=FRA, Lisboa=LIS, Tokio=NRT, Dubai=DXB, Miami=MIA\nNueva York=JFK, Nueva York ciudad=NYC, Cancún=CUN, México=MEX\nLima=LIM, Buenos Aires=EZE, Santiago=SCL, São Paulo=GRU\nPanamá=PTY, Toronto=YYZ, Montreal=YUL, Los Ángeles=LAX\nChicago=ORD, Punta Cana=PUJ, La Habana=HAV, Quito=UIO\nGuayaquil=GYE, Caracas=CCS, Montevideo=MVD, Asunción=ASU\nLa Paz=LPB, Santa Cruz Bolivia=VVI"
+            },
+            {
+              "role": "user",
+              "content": "=Conversación completa:\n\n{{ $json.conversacion }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-0003",
+      "name": "AI - Extraer datos del viaje",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.message?.content ||\n            $input.first().json.choices?.[0]?.message?.content || '{}';\nlet params;\ntry {\n  params = JSON.parse(raw.replace(/```json|```/g, '').trim());\n} catch(e) {\n  params = { consulta_valida: false, razon_invalida: 'No pude interpretar los datos de la conversación.' };\n}\nconst c = $('Extraer conversación').first().json;\nreturn [{ json: { ...params, contactId: c.contactId, telefono: c.telefono, locationId: c.locationId } }];"
+      },
+      "id": "node-0004",
+      "name": "Parsear parámetros",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-001",
+              "leftValue": "={{ $json.consulta_valida }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-0005",
+      "name": "¿Datos completos?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst razon = (data.razon_invalida || '').toLowerCase();\nlet pregunta = 'Para cotizar tu vuelo necesito un poco más de información. ';\nif (razon.includes('origen'))       pregunta += '¿Desde qué ciudad vas a salir?';\nelse if (razon.includes('destino')) pregunta += '¿A qué ciudad quieres viajar?';\nelse if (razon.includes('fecha'))   pregunta += '¿En qué fecha aproximada quieres viajar?';\nelse pregunta += '¿Me puedes indicar desde dónde sales, a dónde vas y en qué fecha aproximada?';\nreturn [{ json: {\n  resultado: 'STOP', motivo: 'datos_incompletos',\n  respuesta: pregunta,\n  contactId: data.contactId, telefono: data.telefono, locationId: data.locationId\n}}];"
+      },
+      "id": "node-0006",
+      "name": "Datos incompletos → STOP",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const params    = $input.first().json;\nconst pasajeros = Math.max(1, parseInt(params.pasajeros) || 1);\n\nreturn params.fechas.map(fecha => ({\n  json: {\n    fecha,\n    origen:    params.origen,\n    destino:   params.destino,\n    pasajeros,\n    contactId:  params.contactId,\n    telefono:   params.telefono,\n    locationId: params.locationId,\n    // SOLO IDA — siempre un único slice\n    duffelBody: JSON.stringify({\n      data: {\n        slices: [{\n          origin:         params.origen,\n          destination:    params.destino,\n          departure_date: fecha\n        }],\n        passengers:      Array.from({ length: pasajeros }, () => ({ type: 'adult' })),\n        cabin_class:     'economy',\n        max_connections: 2\n      }\n    })\n  }\n}));"
+      },
+      "id": "node-0007",
+      "name": "Preparar 5 búsquedas Duffel",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.duffel.com/air/offer_requests",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $vars.DUFFEL_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            },
+            {
+              "name": "Duffel-Version",
+              "value": "v2"
+            },
+            {
+              "name": "Accept-Encoding",
+              "value": "gzip"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "return_offers",
+              "value": "true"
+            },
+            {
+              "name": "supplier_timeout",
+              "value": "15000"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.duffelBody }}",
+        "options": {
+          "ignoreHttpStatusErrors": true
+        }
+      },
+      "id": "node-0008",
+      "name": "Duffel - Consultar precios",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1560,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ══════════════════════════════════════════════════════════\n//  COTIZADOR AÉREO — solo ida, precio real en COP\n//  TRM fija:  3.700 COP por USD\n//  Ganancia:  $1.290.000 COP fijos por boleto\n//  STOP:      precio final (neto + ganancia) por pasajero > $4.400.000 COP\n//  Maleta:    mostrar SIEMPRE carryon primero; maleta solo si no hay otra opción\n// ══════════════════════════════════════════════════════════\n\nconst GANANCIA_POR_BOLETO = 1_290_000;   // COP fijos por boleto\nconst STOP_FINAL_POR_PAX  = 4_400_000;   // STOP si precio FINAL por pasajero supera esto\nconst MAX_ESCALA_MS       = 12 * 60 * 60 * 1000;\nconst COSTO_MALETA_EST    = 200_000;     // COP estimado maleta 23kg (si no está incluida)\n\nconst TASAS_COP = { USD: 3700, EUR: 4000, GBP: 4650, COP: 1, MXN: 190, BRL: 680, AUD: 2350 };\nfunction toCOP(monto, moneda) {\n  return Math.round(parseFloat(monto) * (TASAS_COP[moneda] || TASAS_COP.USD));\n}\n\n// ─── FILTROS ────────────────────────────────────────────\n// Aeropuertos prohibidos como escala (por código IATA)\nconst ESCALAS_PROHIBIDAS_IATA = new Set(['ADZ', 'YYZ']);\n// Países prohibidos como escala\nconst PAISES_PROHIBIDOS = new Set(['US']);\n\nfunction tieneEscalaProhibida(o) {\n  for (const slice of o.slices) {\n    const segs = slice.segments;\n    for (let i = 0; i < segs.length - 1; i++) {\n      const dest     = segs[i].destination;\n      const pais     = dest?.iata_country_code || '';\n      const aeropuerto = dest?.iata_code || '';\n      if (PAISES_PROHIBIDOS.has(pais)) return true;\n      if (ESCALAS_PROHIBIDAS_IATA.has(aeropuerto)) return true;\n    }\n  }\n  return false;\n}\n\nfunction tieneEscalaLarga(o) {\n  for (const slice of o.slices) {\n    const segs = slice.segments;\n    for (let i = 0; i < segs.length - 1; i++) {\n      const espera = new Date(segs[i+1].departing_at) - new Date(segs[i].arriving_at);\n      if (espera > MAX_ESCALA_MS) return true;\n    }\n  }\n  return false;\n}\n\n// ─── MALETA ─────────────────────────────────────────────\n// Duffel retorna baggages[] por segmento×pasajero\n// quantity > 0 en 'checked' = maleta en bodega incluida en la tarifa\nfunction maletasIncluidasEnTarifa(o) {\n  let qty = 0;\n  try {\n    for (const slice of o.slices)\n      for (const seg of slice.segments)\n        for (const pax of (seg.passengers || [])) {\n          const c = (pax.baggages || []).find(b => b.type === 'checked');\n          if (c && c.quantity > qty) qty = c.quantity;\n        }\n  } catch(e) {}\n  return qty;\n}\n\n// ─── PRECIO ─────────────────────────────────────────────\nfunction calcularPrecio(o, pasajeros) {\n  const moneda       = o.total_currency || 'USD';\n  const netoTotal    = toCOP(o.total_amount, moneda);\n  const netoPorPax   = Math.round(netoTotal / pasajeros);\n  const ganancia     = GANANCIA_POR_BOLETO * pasajeros;\n  const finalTotal   = netoTotal + ganancia;\n  const finalPorPax  = Math.round(finalTotal / pasajeros);\n  return { netoTotal, netoPorPax, ganancia, finalTotal, finalPorPax };\n}\n\n// ─── MAIN ───────────────────────────────────────────────\nconst clienteData = $('Preparar 5 búsquedas Duffel').first().json;\nconst pasajeros   = clienteData.pasajeros || 1;\n\nconst todasOfertas = $input.all().flatMap(item =>\n  (!item.json.errors && item.json.data) ? (item.json.data.offers || []) : []\n);\n\nconst filtradas = todasOfertas.filter(o => !tieneEscalaProhibida(o) && !tieneEscalaLarga(o));\n\nif (filtradas.length === 0) {\n  return [{ json: {\n    resultado:  'STOP',\n    motivo:     'sin_resultados',\n    respuesta:  '¿Tienes flexibilidad en las fechas o el origen? No encontré vuelos disponibles sin escalas en EE.UU. ni con escalas mayores a 12 horas para esas fechas.',\n    contactId:  clienteData.contactId, telefono: clienteData.telefono, locationId: clienteData.locationId\n  }}];\n}\n\n// Separar ofertas con SOLO CARRYON de las que incluyen maleta\nconst soloCarryon = filtradas.filter(o => maletasIncluidasEnTarifa(o) === 0);\nconst conMaleta   = filtradas.filter(o => maletasIncluidasEnTarifa(o) > 0);\n\n// Preferir siempre carryon; si no hay, usar las que incluyen maleta\nconst poolPreferido = soloCarryon.length > 0 ? soloCarryon : conMaleta;\nconst incluyeMaleta = soloCarryon.length === 0;  // flag para avisar al cliente\n\n// Ordenar por precio neto por pasajero ascendente\nconst conPrecio = poolPreferido\n  .map(o => ({ oferta: o, precio: calcularPrecio(o, pasajeros) }))\n  .sort((a, b) => a.precio.netoPorPax - b.precio.netoPorPax);\n\nconst { oferta: mejor, precio } = conPrecio[0];\n\n// STOP evaluado sobre precio FINAL (neto + ganancia) por pasajero\nif (precio.finalPorPax > STOP_FINAL_POR_PAX) {\n  return [{ json: {\n    resultado:  'STOP',\n    motivo:     'precio_excedido',\n    respuesta:  `El precio más bajo disponible es $${precio.finalPorPax.toLocaleString('es-CO')} COP por persona, lo cual supera el presupuesto máximo disponible.`,\n    contactId:  clienteData.contactId, telefono: clienteData.telefono, locationId: clienteData.locationId\n  }}];\n}\n\nconst maletas    = maletasIncluidasEnTarifa(mejor);\nconst segs       = mejor.slices[0].segments;\nconst salida     = new Date(segs[0].departing_at);\nconst llegada    = new Date(segs[segs.length - 1].arriving_at);\nconst aerolinea  = segs[0].operating_carrier?.name || segs[0].marketing_carrier?.name || 'N/D';\nconst origenCod  = segs[0].origin?.iata_code || clienteData.origen;\nconst destinoCod = segs[segs.length - 1].destination?.iata_code || clienteData.destino;\nconst numEscalas = segs.length - 1;\nconst detalleEscalas = numEscalas === 0\n  ? 'Vuelo directo'\n  : `${numEscalas} escala(s) vía ${segs.slice(0, -1).map(s => s.destination?.iata_code).join(', ')}`;\n\nconst fechaFormato = salida.toLocaleDateString('es-CO', { weekday:'long', year:'numeric', month:'long', day:'numeric' });\nconst horaS = salida.toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' });\nconst horaL = llegada.toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' });\n\n// Línea de equipaje según lo que incluye la tarifa\nlet lineaEquipaje;\nif (!incluyeMaleta) {\n  // Precio carryon — mostrar también costo estimado con maleta\n  const precioConMaletaPax   = precio.finalPorPax + COSTO_MALETA_EST;\n  const precioConMaletaTotal = precio.finalTotal + (COSTO_MALETA_EST * pasajeros);\n  lineaEquipaje = pasajeros > 1\n    ? `   • ✅ Solo carry-on: $${precio.finalPorPax.toLocaleString('es-CO')} COP/persona ($${precio.finalTotal.toLocaleString('es-CO')} COP total)\\n` +\n      `   • 🧳 Con maleta 23kg: $${precioConMaletaPax.toLocaleString('es-CO')} COP/persona ($${precioConMaletaTotal.toLocaleString('es-CO')} COP total) _(estimado)_`\n    : `   • ✅ Solo carry-on: $${precio.finalPorPax.toLocaleString('es-CO')} COP\\n` +\n      `   • 🧳 Con maleta 23kg: $${precioConMaletaPax.toLocaleString('es-CO')} COP _(estimado)_`;\n} else {\n  // Solo había tarifas con maleta incluida\n  lineaEquipaje = pasajeros > 1\n    ? `   • 🧳 Incluye maleta en bodega: $${precio.finalPorPax.toLocaleString('es-CO')} COP/persona ($${precio.finalTotal.toLocaleString('es-CO')} COP total)\\n` +\n      `   _(No encontramos tarifa solo carry-on para estas fechas)_`\n    : `   • 🧳 Incluye maleta en bodega: $${precio.finalPorPax.toLocaleString('es-CO')} COP\\n` +\n      `   _(No encontramos tarifa solo carry-on para estas fechas)_`;\n}\n\nconst respuesta =\n  `✈️ *Cotización — Solo Ida*\\n\\n` +\n  `📍 *Ruta:* ${origenCod} → ${destinoCod}\\n` +\n  `🗓️ *Fecha:* ${fechaFormato}\\n` +\n  `🕐 *Salida:* ${horaS} | *Llegada:* ${horaL}\\n` +\n  `🛫 *Aerolínea:* ${aerolinea}\\n` +\n  `🔁 *Escalas:* ${detalleEscalas}\\n\\n` +\n  `💰 *Precios:*\\n` +\n  `${lineaEquipaje}\\n\\n` +\n  `¿Te interesa este vuelo o quieres que busque otras opciones?`;\n\nreturn [{ json: {\n  resultado: 'OK',\n  respuesta,\n  cotizacion: {\n    aerolinea, origenCod, destinoCod, fechaFormato,\n    horaSalida: horaS, horaLlegada: horaL,\n    escalas: numEscalas, detalleEscalas,\n    tarifaCarryon:   !incluyeMaleta,\n    maletas:         maletas,\n    precioPorPax:    precio.finalPorPax,\n    precioTotal:     precio.finalTotal,\n    moneda:          'COP',\n    pasajeros\n  },\n  _interno: {\n    netoTotal:    precio.netoTotal,\n    netoPorPax:   precio.netoPorPax,\n    ganancia:     precio.ganancia\n  },\n  contactId:  clienteData.contactId,\n  telefono:   clienteData.telefono,\n  locationId: clienteData.locationId\n}}];"
+      },
+      "id": "node-0009",
+      "name": "Cotizar + Filtros + STOP",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-002",
+              "leftValue": "={{ $json.resultado }}",
+              "rightValue": "OK",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-0010",
+      "name": "¿OK o STOP?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ resultado: $json.resultado, respuesta: $json.respuesta, cotizacion: $json.cotizacion }) }}",
+        "options": {}
+      },
+      "id": "node-0011",
+      "name": "Retornar cotización a Escenario 1",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2220,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ resultado: $json.resultado, motivo: $json.motivo, respuesta: $json.respuesta }) }}",
+        "options": {}
+      },
+      "id": "node-0012",
+      "name": "Retornar STOP a Escenario 1",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2220,
+        420
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook desde Escenario 1": {
+      "main": [
+        [
+          {
+            "node": "Extraer conversación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer conversación": {
+      "main": [
+        [
+          {
+            "node": "AI - Extraer datos del viaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI - Extraer datos del viaje": {
+      "main": [
+        [
+          {
+            "node": "Parsear parámetros",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear parámetros": {
+      "main": [
+        [
+          {
+            "node": "¿Datos completos?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Datos completos?": {
+      "main": [
+        [
+          {
+            "node": "Preparar 5 búsquedas Duffel",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Datos incompletos → STOP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Datos incompletos → STOP": {
+      "main": [
+        [
+          {
+            "node": "Retornar STOP a Escenario 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar 5 búsquedas Duffel": {
+      "main": [
+        [
+          {
+            "node": "Duffel - Consultar precios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Duffel - Consultar precios": {
+      "main": [
+        [
+          {
+            "node": "Cotizar + Filtros + STOP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cotizar + Filtros + STOP": {
+      "main": [
+        [
+          {
+            "node": "¿OK o STOP?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿OK o STOP?": {
+      "main": [
+        [
+          {
+            "node": "Retornar cotización a Escenario 1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retornar STOP a Escenario 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "tags": [
+    "cotizador",
+    "vuelos",
+    "duffel",
+    "sin-booking"
+  ],
+  "pinData": {}
+}
